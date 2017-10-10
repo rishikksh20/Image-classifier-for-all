@@ -35,7 +35,7 @@ batch_size = 32
 epochs = 50
 
 
-#Load moedels
+# Load moedels
 model_vgg = applications.VGG16(weights='imagenet',include_top=False, input_shape = (img_width, img_height, 3))
 model_inception = applications.InceptionV3(weights='imagenet',include_top=False, input_shape = (img_width, img_height, 3))
 model_xception =applications.Xception(weights='imagenet',include_top=False, input_shape = (img_width, img_height, 3))
@@ -119,10 +119,65 @@ test_features = np.concatenate( [np.asarray(vgg_test_features), np.asarray(incep
 seed=2017
 
 # use logistic regression as the model
-print("[INFO] creating model...")
+print("[INFO] creating Logistic Regression...")
 clf = LogisticRegression(random_state=seed)
 clf.fit(features, le_labels)
 # evaluate the model of test data
 preds = clf.predict(test_features)
+print(classification_report(le.inverse_transform(preds),le.inverse_transform(test_labels)))
+print("Accuracy :",accuracy_score(le.inverse_transform(preds),le.inverse_transform(test_labels)))
+
+
+# Xgboost
+import xgboost as xgb
+
+# Prepare the inputs for the model
+train_X = np.asmatrix(features)
+test_X = np.asmatrix(test_features)
+#train_y = train_df['Survived']
+
+# You can experiment with many other options here, using the same .fit() and .predict()
+# methods; see http://scikit-learn.org
+# This example uses the current build of XGBoost, from https://github.com/dmlc/xgboost
+print("[INFO] creating XGBoost...")
+gbm = xgb.XGBClassifier(max_depth=3, n_estimators=300, learning_rate=0.05).fit(train_X, le_labels)
+preds = gbm.predict(test_X)
+
+print(classification_report(le.inverse_transform(preds),le.inverse_transform(test_labels)))
+print("Accuracy :",accuracy_score(le.inverse_transform(preds),le.inverse_transform(test_labels)))
+
+# Apply PCA
+
+from sklearn.decomposition import PCA
+
+X=np.concatenate( [features,test_features], axis=0 )
+pca = PCA(n_components=10000)
+pca.fit(X)
+
+train_x = pca.transform(features)
+test_x = pca.transform(test_features)
+
+# Apply Logistic Regression with PCA
+print("[INFO] creating Logistic Regression with PCA...")
+clf = LogisticRegression(random_state=seed)
+clf.fit(train_x, le_labels)
+
+# evaluate the model of test data
+preds = clf.predict(test_x)
+print(classification_report(le.inverse_transform(preds),le.inverse_transform(test_labels)))
+print("Accuracy :",accuracy_score(le.inverse_transform(preds),le.inverse_transform(test_labels)))
+
+# Apply Xgboost with PCA
+# Prepare the inputs for the model
+train_X = np.asmatrix(train_x)
+test_X = np.asmatrix(test_x)
+
+# You can experiment with many other options here, using the same .fit() and .predict()
+# methods; see http://scikit-learn.org
+# This example uses the current build of XGBoost, from https://github.com/dmlc/xgboost
+print("[INFO] creating XGBoost with PCA...")
+gbm = xgb.XGBClassifier(max_depth=3, n_estimators=300, learning_rate=0.05).fit(train_X, le_labels)
+preds = gbm.predict(test_X)
+
 print(classification_report(le.inverse_transform(preds),le.inverse_transform(test_labels)))
 print("Accuracy :",accuracy_score(le.inverse_transform(preds),le.inverse_transform(test_labels)))
