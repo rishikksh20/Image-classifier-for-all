@@ -26,14 +26,18 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
 
-img_width, img_height = 224,224
-train_data_dir = "data/MSTAR_Chips/TRAIN_images"
-validation_data_dir = "data/MSTAR_Chips/TEST_images"
-nb_train_samples = 1622
-nb_validation_samples = 1365
-batch_size = 32
-epochs = 50
 
+with open('conf/config.json') as f:
+	config=json.load(f)
+
+img_width, img_height = config["size"],config["size"]
+train_data_dir = config["test"]
+validation_data_dir = config["val"]
+batch_size = config["batch_size"]
+epochs = config["epochs"]
+vgg_output=config["vgg"]
+inception_output=config["inception"]
+xception_output=config["xception"]
 
 # Load moedels
 model_vgg = applications.VGG16(weights='imagenet',include_top=False, input_shape = (img_width, img_height, 3))
@@ -41,9 +45,9 @@ model_inception = applications.InceptionV3(weights='imagenet',include_top=False,
 model_xception =applications.Xception(weights='imagenet',include_top=False, input_shape = (img_width, img_height, 3))
 
 # Define Feature extractor
-feat_ext_vgg=Model(input=model_vgg.input, output=model_vgg.get_layer('block5_pool').output)
-feat_ext_inception=Model(input=model_inception.input, output=model_inception.get_layer('mixed10').output)
-feat_ext_xception=Model(input=model_xception.input, output=model_xception.get_layer('block14_sepconv2_act').output)
+feat_ext_vgg=Model(input=model_vgg.input, output=model_vgg.get_layer(vgg_output).output)
+feat_ext_inception=Model(input=model_inception.input, output=model_inception.get_layer(inception_output).output)
+feat_ext_xception=Model(input=model_xception.input, output=model_xception.get_layer(xception_output).output)
 
 
 
@@ -67,7 +71,7 @@ sq_test_features = []
 labels   = []
 test_labels =[]
 
-image_size=(224,224)
+image_size=(img_width, img_height)
 # loop over all the labels in the folder
 for label in train_labels:
 	cur_path = train_data_dir + "/" + label
@@ -116,7 +120,7 @@ test_labels=le.transform(test_labels)
 
 features = np.concatenate( [np.asarray(vgg_features), np.asarray(inception_features), np.asarray(x_features)], axis=1 )
 test_features = np.concatenate( [np.asarray(vgg_test_features), np.asarray(inception_test_features),np.asarray(x_test_features)], axis=1)
-seed=2017
+seed=config["seed"]
 
 # use logistic regression as the model
 print("[INFO] creating Logistic Regression...")
@@ -146,38 +150,41 @@ preds = gbm.predict(test_X)
 print(classification_report(le.inverse_transform(preds),le.inverse_transform(test_labels)))
 print("Accuracy :",accuracy_score(le.inverse_transform(preds),le.inverse_transform(test_labels)))
 
-# Apply PCA
 
-from sklearn.decomposition import PCA
+if config["pca"]:
+	# Apply PCA
 
-X=np.concatenate( [features,test_features], axis=0 )
-pca = PCA(n_components=10000)
-pca.fit(X)
+	from sklearn.decomposition import PCA
 
-train_x = pca.transform(features)
-test_x = pca.transform(test_features)
+	X=np.concatenate( [features,test_features], axis=0 )
+	pca = PCA(n_components=config["n_components"])
+	pca.fit(X)
 
-# Apply Logistic Regression with PCA
-print("[INFO] creating Logistic Regression with PCA...")
-clf = LogisticRegression(random_state=seed)
-clf.fit(train_x, le_labels)
+	train_x = pca.transform(features)
+	test_x = pca.transform(test_features)
 
-# evaluate the model of test data
-preds = clf.predict(test_x)
-print(classification_report(le.inverse_transform(preds),le.inverse_transform(test_labels)))
-print("Accuracy :",accuracy_score(le.inverse_transform(preds),le.inverse_transform(test_labels)))
+	# Apply Logistic Regression with PCA
+	print("[INFO] creating Logistic Regression with PCA...")
+	clf = LogisticRegression(random_state=seed)
+	clf.fit(train_x, le_labels)
 
-# Apply Xgboost with PCA
-# Prepare the inputs for the model
-train_X = np.asmatrix(train_x)
-test_X = np.asmatrix(test_x)
+	# evaluate the model of test data
+	preds = clf.predict(test_x)
+	print(classification_report(le.inverse_transform(preds),le.inverse_transform(test_labels)))
+	print("Accuracy :",accuracy_score(le.inverse_transform(preds),le.inverse_transform(test_labels)))
 
-# You can experiment with many other options here, using the same .fit() and .predict()
-# methods; see http://scikit-learn.org
-# This example uses the current build of XGBoost, from https://github.com/dmlc/xgboost
-print("[INFO] creating XGBoost with PCA...")
-gbm = xgb.XGBClassifier(max_depth=3, n_estimators=300, learning_rate=0.05).fit(train_X, le_labels)
-preds = gbm.predict(test_X)
+	# Apply Xgboost with PCA
+	# Prepare the inputs for the model
+	train_X = np.asmatrix(train_x)
+	test_X = np.asmatrix(test_x)
 
-print(classification_report(le.inverse_transform(preds),le.inverse_transform(test_labels)))
-print("Accuracy :",accuracy_score(le.inverse_transform(preds),le.inverse_transform(test_labels)))
+	# You can experiment with many other options here, using the same .fit() and .predict()
+	# methods; see http://scikit-learn.org
+	# This example uses the current build of XGBoost, from https://github.com/dmlc/xgboost
+	print("[INFO] creating XGBoost with PCA...")
+	gbm = xgb.XGBClassifier(max_depth=config["xgb_max_dept"], n_estimators=config["xgb_n_estimator"], \
+					learning_rate=config["xgb_learning_rate"]).fit(train_X, le_labels)
+	preds = gbm.predict(test_X)
+
+	print(classification_report(le.inverse_transform(preds),le.inverse_transform(test_labels)))
+	print("Accuracy :",accuracy_score(le.inverse_transform(preds),le.inverse_transform(test_labels)))
