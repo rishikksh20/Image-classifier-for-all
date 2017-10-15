@@ -1,0 +1,23 @@
+{
+  "model":["vgg","inception","xception"],
+  "weights":"imagenet",
+  "include_top":false,
+  "train":"data/train",
+  "val":"data/val",
+  "model":"model",
+  "features":"feature",
+  "save_model":"save",
+  "seed":2017,
+  "vgg":"block5_pool",
+  "inception":"mixed10",
+  "xception":"block14_sepconv2_act",
+  "size":224,
+  "batch_size":32,
+  "epochs":50,
+  "pca":false,
+  "n_components":1000,
+  "xgb_max_dept":3,
+  "xgb_n_estimator":100,
+  "xgb_learning_rate":0.05
+
+}
