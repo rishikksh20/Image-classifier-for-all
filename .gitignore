@@ -1,2 +1,6 @@
 data
 data/*
+model_json
+model_json/*
+features
+features/*
